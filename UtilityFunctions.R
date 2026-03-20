@@ -18,8 +18,10 @@ if (!require("sjstats")) install.packages("sjstats") #Gives CIs around Std.Beta
 if (!require("Hmisc")) install.packages("Hmisc") #For corstars
 if (!require("xtable")) install.packages("xtable") #For corstars
 if (!require("effsize")) install.packages("effsize") #For effect sizes
+if (!require("effectsize")) install.packages("effectsize") #For effect sizes
 if (!require("afex")) install.packages("afex") #For ANOVA
 if (!require("emmeans")) install.packages("emmeans") #For ANOVA
+if (!require("pwr")) install.packages("pwr") #For power analysis
 select <- dplyr::select #Ensuring that the default for "select" is from dplyr
 
 
@@ -45,6 +47,8 @@ freq <- function(x, digits = 2, useNA = "ifany"){
 display.lm <- function(model, digits = 2, 
                        std = FALSE, CI = TRUE, conf.level = .95) {
   df <- summary(model) %>% with(df)
+  f2 <- cohens_f_squared(model) %>% as_tibble() %>% 
+    select(term = Parameter, f2 = Cohens_f2_partial)
   display.obj <- tidy(model, conf.int = CI) %>% 
     as.data.frame() %>% mutate(p.value.char = ifelse(p.value < .001, "< .001", p.value),
                                p.value.3 = round(p.value, 3),
@@ -53,15 +57,16 @@ display.lm <- function(model, digits = 2,
                                                    ifelse(p.value < .05, "\\*", 
                                                           ifelse(p.value < .10, "\\.", " "))))) %>%
     mutate(p.value = as.character(ifelse(p.value < .001, "< .001", p.value.3)),
-           df = df[2])
+           df = df[2]) %>% 
+    left_join(f2, by = "term")
   if(CI == T){
     display.obj <- display.obj %>% 
       dplyr::select(term, B = estimate, SE = std.error, t = statistic, df, 
-                    p.value, conf.low, conf.high, ` `)
+                    p.value, conf.low, conf.high, f2, ` `)
   } else {
     display.obj <- display.obj %>% 
       dplyr::select(term, B = estimate, SE = std.error, t = statistic, df, 
-                    p.value, ` `)
+                    p.value, f2, ` `)
   }
   if(std == T){
     display.obj <- display.obj %>% 
@@ -180,7 +185,7 @@ display.glm <- function(model, digits = 2,
 }
 
 
-fixed.glmer <- function(model, digits = 2) {
+display.glmer <- function(model, digits = 2) {
   df <- summary(model) %>% coefficients() %>% as.data.frame() %>% rownames_to_column()
   CI <- confint(model, parm="beta_", method="Wald") %>% 
     as.data.frame() %>% rownames_to_column() %>% 
@@ -199,11 +204,14 @@ fixed.glmer <- function(model, digits = 2) {
 }
 
 
-
 ## Additional steps for formatting kable
-htable <- function(display.obj, style = "default") {
-  if (style == "default"){kab <- kable(display.obj)}
-  if (style == "center"){kab <- kable(display.obj, align = c("l", rep('c', ncol(display.obj) - 1)))}
+htable <- function(display.obj, style = "default", caption = NA) {
+  if (style == "default"){
+    if(is.na(caption)) {kab <- kable(display.obj)}
+    else {kab <- kable(display.obj, caption = caption)}}
+  if (style == "center"){
+    if(is.na(caption)) {kab <- kable(display.obj, align = c("l", rep('c', ncol(display.obj) - 1)))}
+    else {kab <- kable(display.obj, align = c("l", rep('c', ncol(display.obj) - 1)), caption = caption)}}
   kab %>% kable_styling(bootstrap_options = c("hover", "condensed", "responsive"), 
                         full_width = F, position = "center")
 }

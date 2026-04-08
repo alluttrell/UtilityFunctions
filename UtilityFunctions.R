@@ -76,7 +76,7 @@ freq <- function(x, digits = 2, useNA = "ifany"){
 }
 
 #### REGRESSION FUNCTIONS ####
-display.lm <- function(model, digits = 2, 
+display.lm <- function(model, digits = 2, graded = TRUE, 
                        std = FALSE, CI = TRUE, conf.level = .95) {
   df <- summary(model) %>% with(df)
   display.obj <- tidy(model, conf.int = CI) %>% 
@@ -108,7 +108,7 @@ display.lm <- function(model, digits = 2,
 
 
 ## Output results of a linear model using ANOVA statistics
-lm_to_anova <- function(model, digits = 2, type = "III") {
+lm_to_anova <- function(model, digits = 2, graded = TRUE, type = "III") {
   
   anova.out <- Anova(model, type = type) 
   es <- eta_squared(anova.out) %>% as.data.frame() %>% 
@@ -131,7 +131,7 @@ lm_to_anova <- function(model, digits = 2, type = "III") {
   return(display.obj)
 }
 
-display.lmer <- function(model, digits = 2, CI = TRUE) {
+display.lmer <- function(model, digits = 2, graded = TRUE, CI = TRUE) {
   display.obj <- summary(model) %>% coefficients() %>% as.data.frame() %>% 
     rownames_to_column() %>% rename(term = rowname, p.value = `Pr(>|t|)`) %>% 
     as.data.frame() %>% mutate(p.value.3 = round(p.value, 3),
@@ -155,7 +155,7 @@ display.lmer <- function(model, digits = 2, CI = TRUE) {
 }
 
 
-random.lmer <- function(model, digits = 2) {
+random.lmer <- function(model, digits = 2, graded = TRUE) {
   display.obj <- VarCorr(model) %>% as.data.frame() %>% 
     select(Groups = grp, Var1 = var1, Var2 = var2, 
            `Variance/\nCovariance` = vcov, 
@@ -167,7 +167,7 @@ random.lmer <- function(model, digits = 2) {
 }
 
 
-display.glm <- function(model, digits = 2, 
+display.glm <- function(model, digits = 2, graded = TRUE, 
                         OR = FALSE, CI = TRUE, conf.level = .95) {
   df <- summary(model) %>% with(df)
   display.obj <- tidy(model, conf.int = CI) %>% 
@@ -211,7 +211,7 @@ display.glm <- function(model, digits = 2,
 }
 
 
-display.glmer <- function(model, digits = 2) {
+display.glmer <- function(model, digits = 2, graded = TRUE) {
   df <- summary(model) %>% coefficients() %>% as.data.frame() %>% rownames_to_column()
   CI <- confint(model, parm="beta_", method="Wald") %>% 
     as.data.frame() %>% rownames_to_column() %>% 
@@ -244,7 +244,7 @@ htable <- function(display.obj, style = "default", caption = NA) {
 
 #### CORRELATION FUNCTIONS ####
 corstars <-function(x, method=c("pearson", "spearman"), removeTriangle=c("upper", "lower"),
-                    result=c("none", "html", "latex"), digits = 2){
+                    result=c("none", "html", "latex"), digits = 2, graded = TRUE){
   #Compute correlation matrix
   x <- as.matrix(x)
   correlation_matrix<-rcorr(x, type=method[1])
@@ -299,7 +299,7 @@ corstars <-function(x, method=c("pearson", "spearman"), removeTriangle=c("upper"
 
 } 
 
-display.r <- function(model, digits = 2) {
+display.r <- function(model, digits = 2, graded = TRUE) {
   broom::tidy(model) %>% 
     select(r = estimate, df = parameter, t = statistic, p.value, conf.low, conf.high) %>% 
     mutate(p.value = p.round(p.value, digits, graded)) %>% 
@@ -307,7 +307,7 @@ display.r <- function(model, digits = 2) {
 }
 
 ## T.Tests
-display.t <- function(model, digits = 2, CI = FALSE){
+display.t <- function(model, digits = 2, graded = TRUE, CI = FALSE){
   if(str_detect(model$method, "Two Sample t-test") == TRUE) {
     data <- unlist(str_split(model$data.name, " by ")) %>% 
       str_split("\\$")

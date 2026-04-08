@@ -25,6 +25,38 @@ if (!require("pwr")) install.packages("pwr") #For power analysis
 select <- dplyr::select #Ensuring that the default for "select" is from dplyr
 
 
+### Round p-values for reporting
+p.round <- function(p.value, digits = 2, graded = TRUE) {
+  if(digits < 2){
+    print("Warning: Rounding to less than 2 digits is not recommended.")
+  }
+  if(digits == 2) {
+    if(graded == TRUE){
+      rounded.p.value <- ifelse(p.value < .001, "< .001",
+             ifelse(p.value < .01,
+                    sprintf("%.3f", p.value),
+                    sprintf("%.2f", p.value)))
+      return(rounded.p.value)
+    } else {
+      sprint.call <- paste0("%.", digits, "f")
+      less.than <- as.numeric(paste0(".", paste0(c(rep(0,digits-1), 1), collapse = "")))
+      rounded.p.value <- ifelse(p.value < less.than, 
+             paste0("< ", less.than),
+             sprintf(sprint.call, p.value))
+      return(rounded.p.value)
+    }
+  }
+  if(digits > 2){
+    sprint.call <- paste0("%.", digits, "f")
+    less.than <- as.numeric(paste0(".", paste0(c(rep(0,digits-1), 1), collapse = "")))
+    rounded.p.value <- ifelse(p.value < less.than, 
+           paste0("< ", less.than),
+           sprintf(sprint.call, p.value))
+    return(rounded.p.value)
+  }
+}
+
+
 #### PLOTTING ####
 # Set up plot theme
 apatheme <- theme_bw() +
@@ -47,26 +79,22 @@ freq <- function(x, digits = 2, useNA = "ifany"){
 display.lm <- function(model, digits = 2, 
                        std = FALSE, CI = TRUE, conf.level = .95) {
   df <- summary(model) %>% with(df)
-  f2 <- cohens_f_squared(model) %>% as_tibble() %>% 
-    select(term = Parameter, f2 = Cohens_f2_partial)
   display.obj <- tidy(model, conf.int = CI) %>% 
-    as.data.frame() %>% mutate(p.value.char = ifelse(p.value < .001, "< .001", p.value),
-                               p.value.3 = round(p.value, 3),
+    as.data.frame() %>% mutate(p.value.3 = round(p.value, 3),
                                ` ` = ifelse(p.value < .001, "***", 
                                             ifelse(p.value < .01, "**", 
                                                    ifelse(p.value < .05, "\\*", 
                                                           ifelse(p.value < .10, "\\.", " "))))) %>%
-    mutate(p.value = as.character(ifelse(p.value < .001, "< .001", p.value.3)),
-           df = df[2]) %>% 
-    left_join(f2, by = "term")
+    mutate(p.value = p.round(p.value, digits, graded),
+           df = df[2])
   if(CI == T){
     display.obj <- display.obj %>% 
       dplyr::select(term, B = estimate, SE = std.error, t = statistic, df, 
-                    p.value, conf.low, conf.high, f2, ` `)
+                    p.value, conf.low, conf.high, ` `)
   } else {
     display.obj <- display.obj %>% 
       dplyr::select(term, B = estimate, SE = std.error, t = statistic, df, 
-                    p.value, f2, ` `)
+                    p.value, ` `)
   }
   if(std == T){
     display.obj <- display.obj %>% 
@@ -91,7 +119,7 @@ lm_to_anova <- function(model, digits = 2, type = "III") {
   display.obj <- prelim.df %>% 
     mutate(df = str_c(Df, ", ", resid$Df),
            MSE = resid$MSE, 
-           p.value = ifelse(`Pr(>F)` < .001, "< .001", as.character(round(`Pr(>F)`, 3))),
+           p.value = p.round(`Pr(>F)`, digits),
            ` ` = ifelse(`Pr(>F)` < .001, "***", 
                         ifelse(`Pr(>F)` < .01, "**", 
                                ifelse(`Pr(>F)` < .05, "\\*", 
@@ -106,13 +134,12 @@ lm_to_anova <- function(model, digits = 2, type = "III") {
 display.lmer <- function(model, digits = 2, CI = TRUE) {
   display.obj <- summary(model) %>% coefficients() %>% as.data.frame() %>% 
     rownames_to_column() %>% rename(term = rowname, p.value = `Pr(>|t|)`) %>% 
-    as.data.frame() %>% mutate(p.value.char = ifelse(p.value < .001, "< .001", p.value),
-                               p.value.3 = round(p.value, 3),
+    as.data.frame() %>% mutate(p.value.3 = round(p.value, 3),
                                ` ` = ifelse(p.value < .001, "***", 
                                             ifelse(p.value < .01, "**", 
                                                    ifelse(p.value < .05, "\\*", 
                                                           ifelse(p.value < .10, "\\.", " "))))) %>%
-    mutate(p.value = as.character(ifelse(p.value < .001, "< .001", p.value.3))) %>%
+    mutate(p.value = p.round(p.value, digits, graded)) %>%
     select(term, Estimate, SE = `Std. Error`, t = `t value`, df, p.value, ` `) %>%
     mutate_if(is.numeric, round, digits)
   if(CI == TRUE) {
@@ -144,13 +171,12 @@ display.glm <- function(model, digits = 2,
                         OR = FALSE, CI = TRUE, conf.level = .95) {
   df <- summary(model) %>% with(df)
   display.obj <- tidy(model, conf.int = CI) %>% 
-    as.data.frame() %>% mutate(p.value.char = ifelse(p.value < .001, "< .001", p.value),
-                               p.value.3 = round(p.value, 3),
+    as.data.frame() %>% mutate(p.value.3 = round(p.value, 3),
                                ` ` = ifelse(p.value < .001, "***", 
                                             ifelse(p.value < .01, "**", 
                                                    ifelse(p.value < .05, "\\*", 
                                                           ifelse(p.value < .10, "\\.", " "))))) %>%
-    mutate(p.value = as.character(ifelse(p.value < .001, "< .001", p.value.3)),
+    mutate(p.value = p.round(p.value, digits, graded),
            df = df[2])
   if(OR == T){
     if(CI == T){
@@ -191,13 +217,12 @@ display.glmer <- function(model, digits = 2) {
     as.data.frame() %>% rownames_to_column() %>% 
     rename(conf.low = `2.5 %`, conf.high = `97.5 %`)
   display.obj <- left_join(df, CI) %>% rename(term = rowname, p.value = `Pr(>|z|)`) %>% 
-    as.data.frame() %>% mutate(p.value.char = ifelse(p.value < .001, "< .001", p.value),
-                               p.value.3 = round(p.value, 3),
+    as.data.frame() %>% mutate(p.value.3 = round(p.value, 3),
                                ` ` = ifelse(p.value < .001, "***", 
                                             ifelse(p.value < .01, "**", 
                                                    ifelse(p.value < .05, "\\*", 
                                                           ifelse(p.value < .10, "\\.", " "))))) %>%
-    mutate(p.value = as.character(ifelse(p.value < .001, "< .001", p.value.3))) %>%
+    mutate(p.value = p.round(p.value, digits, graded)) %>%
     select(term, Estimate, SE = `Std. Error`, Z = `z value`, p.value, conf.low, conf.high, ` `) %>%
     mutate_if(is.numeric, round, digits)
   return(display.obj)
@@ -216,191 +241,10 @@ htable <- function(display.obj, style = "default", caption = NA) {
                         full_width = F, position = "center")
 }
 
-## SIMPLE EFFECTS
-simple.effects <- function(model, x, m, minmax, by = 1) {
-  terms <- names(model$model) #Extract names of variables in model
-  df <- get(as.character(model$call)[3]) #Load dataframe used in model
-  simple.list <- list() #Set up empty list for saving iterative model results later
-  
-  if(missing(x)) {x <- terms[2]} #Assigning first predictor of model as X if unspecified
-  if(missing(m)) {m <- terms[3]} #Assigning second predictor in model as M if unspecified
-  
-  #Accounting for potentially dichotomous X variable (dummy codes it)
-  if(!is.numeric(pull(df[x]))) {df[x] <- as.numeric(factor(pull(df[x]))) - 1}
-  
-  #For continuous moderators (i.e., > 2 levels)
-  level.check <- pull(df[m]) %>% na.omit()
-  if(!is.character(level.check) & length(unique(level.check)) > 2) { 
-    m.vector <- pull(df[m]) #Isolating moderator as vector
-    
-    #Identifying levels of m at which to test effect of x
-    if(missing(minmax)) {minmax <- c(floor(min(df[m], na.rm = T)), 
-                                     ceiling(max(df[m], na.rm = T)))} #Assigning minmax from m's min and max values, rounded down and up to the nearest whole number, respectively
-    if(is.character(minmax) == T) {
-      if(minmax == "meansd") {
-        #If user chose meansd, use -1SD, Mean, +1SD as levels of m for simple effects
-        levels <- c(mean(m.vector, na.rm = T)-sd(m.vector, na.rm = T),
-                    mean(m.vector, na.rm = T),
-                    mean(m.vector, na.rm = T)+sd(m.vector, na.rm = T)) 
-      } else {
-        levels <- seq(floor(min(df[m], na.rm = T)), ceiling(max(df[m], na.rm = T)), by)
-        print("NOTE: Unrecognized minmax type. Using default levels of moderator.")
-      }
-    } else {
-      if (length(minmax) == 2) {
-        levels <- seq(minmax[1], minmax[2], by)
-      } else {
-        levels <- minmax
-      }
-    }
-    
-    #Save all levels of m alongside whole numbers (i) for use in the list
-    list.levels <- data.frame(levels) %>% rownames_to_column("i") %>% 
-      mutate(i = as.numeric(i))
-    
-    #Run a model for each level of m and extract x's effect
-    for (i in list.levels$i) {
-      df$m.simple <- m.vector - list.levels$levels[i]
-      new.formula.chr <- str_replace(formula(model), paste("\\* ", m, sep = ""), "* m.simple")
-      model.simple <- lm(as.formula(paste(new.formula.chr[2], 
-                                          new.formula.chr[1], 
-                                          new.formula.chr[3])), df)
-      tidy.model <- display.lm(model.simple)
-      simple.list[[i]] <- filter(tidy.model, term == x) %>% 
-        mutate(level = list.levels$levels[i])
-      
-      # Consolidate results
-      simple <- do.call(rbind, simple.list) %>% 
-        select(level, everything())
-      
-      # Check for levels of moderator outside range
-      check <- simple$level >= min(m.vector, na.rm = T) & 
-        simple$level <= max(m.vector, na.rm = T)
-      if(any(check == F)) {
-        print("NOTE: One or more levels of moderator fall outside range of that variable in the data")
-        simple <- mutate(simple, outside.range = check == F)
-      }
-    }
-  } else {
-    levels <- as.character(unique(level.check))
-    list.levels <- data.frame(levels) %>% rownames_to_column("i") %>% 
-      mutate(levels = as.character(levels), i = as.numeric(i))
-    for(i in list.levels$i) {
-      df <- mutate(df, m.simple = 1)
-      df$m.simple[pull(df[m]) == list.levels$levels[i]] <- 0      
-      new.formula.chr <- str_replace(formula(model), paste("\\* ", m, sep = ""), "* m.simple")
-      model.simple <- lm(as.formula(paste(new.formula.chr[2], 
-                                          new.formula.chr[1], 
-                                          new.formula.chr[3])), df)
-      tidy.model <- display.lm(model.simple)
-      simple.list[[i]] <- filter(tidy.model, term == x) %>% 
-        mutate(level = as.character(list.levels$levels[i]))
-    }
-    
-    # Consolidate results
-    simple <- do.call(rbind, simple.list) %>% 
-      select(level, everything())
-  }
-  
-  names(simple) <- str_replace(names(simple), "level", m)
-  return(simple)
-}
-
-simple.2ways <- function(model, x, m, w, minmax, by = 1) {
-  terms <- names(model$model) #Extract names of variables in model
-  df <- get(as.character(model$call)[3]) #Load dataframe used in model
-  simple.list <- list() #Set up empty list for saving iterative model results later
-  
-  if(missing(x)) {x <- terms[2]} #Assigning first predictor of model as X if unspecified
-  if(missing(w)) {w <- terms[3]} #Assigning second predictor in model as W if unspecified
-  if(missing(m)) {m <- terms[4]} #Assigning third predictor in model as M if unspecified
-  
-  #Accounting for potentially dichotomous X and W variables
-  if(!is.numeric(pull(df[x]))) {df[x] <- as.numeric(factor(pull(df[x]))) - 1}
-  if(!is.numeric(pull(df[w]))) {df[w] <- as.numeric(factor(pull(df[w]))) - 1}
-  
-  #For continuous moderators (i.e., > 2 levels)
-  level.check <- pull(df[m]) %>% na.omit()
-  if(!is.character(level.check) & length(unique(level.check)) > 2) { 
-    m.vector <- pull(df[m]) #Isolating moderator as vector
-    
-    #Identifying levels of m at which to test effect of x
-    if(missing(minmax)) {minmax <- c(floor(min(df[m], na.rm  = T)), 
-                                     ceiling(max(df[m], na.rm  = T)))} #Assigning minmax from m's min and max values, rounded down and up to the nearest whole number, respectively
-    if(is.character(minmax) == T) {
-      if(minmax == "meansd") {
-        #If user chose meansd, use -1SD, Mean, +1SD as levels of m for simple effects
-        levels <- c(mean(m.vector, na.rm = T)-sd(m.vector, na.rm = T),
-                    mean(m.vector, na.rm = T),
-                    mean(m.vector, na.rm = T)+sd(m.vector, na.rm = T)) 
-      } else {
-        levels <- seq(floor(min(df[m], na.rm  = T)), 
-                      ceiling(max(df[m], na.rm  = T)), by)
-        print("NOTE: Unrecognized minmax type. Using default levels of moderator.")
-      }
-    } else {
-      if (length(minmax) == 2) {
-        levels <- seq(minmax[1], minmax[2], by)
-      } else {
-        levels <- minmax
-      }
-    }
-    
-    #Save all levels of m alongside whole numbers (i) for use in the list
-    list.levels <- data.frame(levels) %>% rownames_to_column("i") %>% 
-      mutate(i = as.numeric(i))
-    
-    #Run a model for each level of m and extract x's effect
-    for (i in list.levels$i) {
-      df$m.simple <- m.vector - list.levels$levels[i]
-      new.formula.chr <- str_replace(formula(model), paste("\\* ", m, sep = ""), "* m.simple")
-      model.simple <- lm(as.formula(paste(new.formula.chr[2], 
-                                          new.formula.chr[1], 
-                                          new.formula.chr[3])), df)
-      tidy.model <- display.lm(model.simple)
-      simple.list[[i]] <- filter(tidy.model, term == paste(x,":",w,sep="")) %>% 
-        mutate(level = list.levels$levels[i])
-      
-      # Consolidate results
-      simple <- do.call(rbind, simple.list) %>% 
-        select(level, everything())
-      
-      # Check for levels of moderator outside range
-      check <- simple$level >= min(m.vector, na.rm = T) & 
-        simple$level <= max(m.vector, na.rm = T)
-      if(any(check == F)) {
-        print("NOTE: One or more levels of moderator fall outside range of that variable in the data")
-        simple <- mutate(simple, outside.range = check == F)
-      }
-    }
-  } else {
-    levels <- as.character(unique(level.check))
-    list.levels <- data.frame(levels) %>% rownames_to_column("i") %>% 
-      mutate(levels = as.character(levels), i = as.numeric(i))
-    for(i in list.levels$i) {
-      df <- mutate(df, m.simple = 1)
-      df$m.simple[pull(df[m]) == list.levels$levels[i]] <- 0      
-      new.formula.chr <- str_replace(formula(model), paste("\\* ", m, sep = ""), "* m.simple")
-      model.simple <- lm(as.formula(paste(new.formula.chr[2], 
-                                          new.formula.chr[1], 
-                                          new.formula.chr[3])), df)
-      tidy.model <- display.lm(model.simple)
-      simple.list[[i]] <- filter(tidy.model, term == paste(x,":",w,sep="")) %>% 
-        mutate(level = as.character(list.levels$levels[i]))
-    }
-    
-    # Consolidate results
-    simple <- do.call(rbind, simple.list) %>% 
-      select(level, everything())
-  }
-  
-  names(simple) <- str_replace(names(simple), "level", m)
-  return(simple)
-}
 
 #### CORRELATION FUNCTIONS ####
 corstars <-function(x, method=c("pearson", "spearman"), removeTriangle=c("upper", "lower"),
-                    result=c("none", "html", "latex"), round = 2){
+                    result=c("none", "html", "latex"), digits = 2){
   #Compute correlation matrix
   x <- as.matrix(x)
   correlation_matrix<-rcorr(x, type=method[1])
@@ -414,7 +258,7 @@ corstars <-function(x, method=c("pearson", "spearman"), removeTriangle=c("upper"
                                   ifelse(p < .10, "+  ", "   "))))
   
   ## trunctuate the correlation matrix to two decimal
-  R <- format(round(cbind(rep(-1.11, ncol(x)), R), round))[,-1]
+  R <- format(round(cbind(rep(-1.11, ncol(x)), R), digits))[,-1]
   
   ## build a new matrix that includes the correlations with their apropriate stars
   Rnew <- matrix(paste(R, mystars, sep=""), ncol=ncol(x))
@@ -458,7 +302,7 @@ corstars <-function(x, method=c("pearson", "spearman"), removeTriangle=c("upper"
 display.r <- function(model, digits = 2) {
   broom::tidy(model) %>% 
     select(r = estimate, df = parameter, t = statistic, p.value, conf.low, conf.high) %>% 
-    mutate(p.value = ifelse(p.value < .001, "< .001", as.character(round(p.value)))) %>% 
+    mutate(p.value = p.round(p.value, digits, graded)) %>% 
     mutate_if(is.numeric, round, digits)
 }
 
@@ -499,7 +343,7 @@ display.t <- function(model, digits = 2, CI = FALSE){
   
   model.out <- broom::tidy(model) %>% 
     mutate(`Cohen's d` = d$estimate,
-           p.value = ifelse(p.value < .001, "< .001", round(p.value, digits))) %>% 
+           p.value = p.round(p.value, digits, graded)) %>% 
     select(t = statistic, df = parameter, p.value, `Cohen's d`)
   
   if(CI == TRUE){

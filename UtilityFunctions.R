@@ -146,7 +146,7 @@ display.lmer <- function(model, digits = 2, graded = TRUE, CI = TRUE) {
     CI <- confint(model) %>% as.data.frame() %>% rownames_to_column("term") %>% 
       rename(conf.low = `2.5 %`, conf.high = `97.5 %`) %>% 
       mutate(conf.low = round(conf.low, digits), conf.high = round(conf.high, digits))
-    display.obj.print <- left_join(display.obj, CI) %>% 
+    display.obj.print <- left_join(display.obj, CI, by = "term") %>% 
       select(term, Estimate, SE, t, df, p.value, conf.low, conf.high, ` `)
   } else {
     display.obj.print <- display.obj
@@ -216,7 +216,8 @@ display.glmer <- function(model, digits = 2, graded = TRUE) {
   CI <- confint(model, parm="beta_", method="Wald") %>% 
     as.data.frame() %>% rownames_to_column() %>% 
     rename(conf.low = `2.5 %`, conf.high = `97.5 %`)
-  display.obj <- left_join(df, CI) %>% rename(term = rowname, p.value = `Pr(>|z|)`) %>% 
+  display.obj <- left_join(df, CI) %>% 
+    rename(term = rowname, p.value = `Pr(>|z|)`) %>% 
     as.data.frame() %>% mutate(p.value.3 = round(p.value, 3),
                                ` ` = ifelse(p.value < .001, "***", 
                                             ifelse(p.value < .01, "**", 

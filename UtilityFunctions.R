@@ -119,7 +119,7 @@ lm_to_anova <- function(model, digits = 2, graded = TRUE, type = "III") {
   display.obj <- prelim.df %>% 
     mutate(df = str_c(Df, ", ", resid$Df),
            MSE = resid$MSE, 
-           p.value = p.round(`Pr(>F)`, digits),
+           p.value = p.round(`Pr(>F)`, digits, graded),
            ` ` = ifelse(`Pr(>F)` < .001, "***", 
                         ifelse(`Pr(>F)` < .01, "**", 
                                ifelse(`Pr(>F)` < .05, "\\*", 
@@ -155,7 +155,7 @@ display.lmer <- function(model, digits = 2, graded = TRUE, CI = TRUE) {
 }
 
 
-random.lmer <- function(model, digits = 2, graded = TRUE) {
+random.lmer <- function(model, digits = 2) {
   display.obj <- VarCorr(model) %>% as.data.frame() %>% 
     select(Groups = grp, Var1 = var1, Var2 = var2, 
            `Variance/\nCovariance` = vcov, 
@@ -244,7 +244,7 @@ htable <- function(display.obj, style = "default", caption = NA) {
 
 #### CORRELATION FUNCTIONS ####
 corstars <-function(x, method=c("pearson", "spearman"), removeTriangle=c("upper", "lower"),
-                    result=c("none", "html", "latex"), digits = 2, graded = TRUE){
+                    result=c("none", "html", "latex"), digits = 2){
   #Compute correlation matrix
   x <- as.matrix(x)
   correlation_matrix<-rcorr(x, type=method[1])
